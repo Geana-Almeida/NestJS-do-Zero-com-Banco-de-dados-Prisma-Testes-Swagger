@@ -15,7 +15,8 @@ export class UsersService {
       },
       select: {
         name: true,
-        email: true
+        email: true,
+        Task: true
       }
     })
 
@@ -50,13 +51,13 @@ export class UsersService {
 
   async update(id: number, updateUserDto: UpdateUserDto){
     try {
-      const users = await this.prisma.user.findFirst({
+      const user = await this.prisma.user.findFirst({
       where: {
         id: id
       }
     });
 
-    if(!users){
+    if(!user){
       throw new NotFoundException('Usuário não encontrado');
     }
 
@@ -65,7 +66,13 @@ export class UsersService {
         id: id
       },
       data: {
-        ...updateUserDto
+        name: updateUserDto.name ? updateUserDto.name : user.name,
+        passwordHash: updateUserDto.password ? updateUserDto.password : user.passwordHash
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true
       }
     })
       
@@ -96,11 +103,6 @@ export class UsersService {
     await this.prisma.user.delete({
       where: {
         id: id
-      },
-      select: {
-        id: true,
-        name: true,
-        email: true
       }
     })
 

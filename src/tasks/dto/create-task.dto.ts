@@ -3,7 +3,7 @@
   Validar dados, transformar dados.
   Se usa para representar quais dados e em que formatos uma determinada camada aceita e trabalha
 */
-import { IsNotEmpty, IsString, Min, MinLength } from "class-validator";
+import { IsNotEmpty, IsNumber, IsString, Min, MinLength } from "class-validator";
 
  
 
@@ -16,4 +16,8 @@ export class CreateTaskDto{
   @IsString()
   @MinLength(10, { message: "A descrição deve ter no mínimo 10 caracteres" })
   readonly description: string;
+
+  @IsNumber()
+  @IsNotEmpty()
+  readonly userId: number;
 }
