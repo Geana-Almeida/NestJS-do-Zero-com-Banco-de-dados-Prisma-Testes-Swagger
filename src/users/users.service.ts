@@ -1,21 +1,23 @@
-import { ConsoleLogger, HttpException, Injectable, NotFoundException } from '@nestjs/common';
+import { ConsoleLogger, HttpException, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { HashingServiceProtocol } from 'src/auth/hash/hashing.service';
+import { PayloadTokenDto } from 'src/auth/dto/payload-token.dto';
 
 @Injectable()
 export class UsersService {
 
   constructor(
     private prisma: PrismaService,
-    private readonly hashingService: HashingServiceProtocol, 
-  ) {}
+    private readonly hashingService: HashingServiceProtocol,
+  ) { }
 
   async findOne(id: number) {
     const user = await this.prisma.user.findFirst({
-      where:{
-        id: id
+      where: {
+        id: id,
+        status: true
       },
       select: {
         name: true,
@@ -24,14 +26,14 @@ export class UsersService {
       }
     })
 
-    if(user){
+    if (user) {
       return user
     }
 
     throw new HttpException('Usuário não encontrado', 404);
   }
 
-  async create(createUserDto: CreateUserDto){
+  async create(createUserDto: CreateUserDto) {
     try {
       const passwordHash = await this.hashingService.hash(createUserDto.password);
 
@@ -50,82 +52,98 @@ export class UsersService {
 
       return user;
     } catch (error) {
-      console.log(error);
-      throw new HttpException("Erro ao criar usuário", 500)
-    }
-  }
-
-  async update(id: number, updateUserDto: UpdateUserDto){
-    try {
-      const user = await this.prisma.user.findFirst({
-      where: {
-        id: id
-      }
-    });
-
-    if(!user){
-      throw new NotFoundException('Usuário não encontrado');
-    }
-
-    const dataUser: { name?: string, passwordHash?: string} = {
-      name: updateUserDto.name ? updateUserDto.name : user.name,
-    }
-
-    if(updateUserDto.password){
-      const passwordHash = await this.hashingService.hash(updateUserDto.password);
-      dataUser['passwordHash'] = passwordHash;
-    }
-
-    const updateUser = await this.prisma.user.update({
-      where: {
-        id: id
-      },
-      data: {
-        name: dataUser.name,
-        passwordHash: dataUser?.passwordHash ? dataUser.passwordHash : user.passwordHash,
-      },
-      select: {
-        id: true,
-        name: true,
-        email: true
-      }
-    })
-      
-    return updateUser;
-    } catch (error) {
-      console.log(error);
       // instanceof verifica se o erro é uma instância dessa classe (ou herda dela)
-        if (error instanceof HttpException) {
-    throw error;
-  }
+      if (error instanceof HttpException) {
+        throw error;
+      }
       throw new HttpException("Erro ao atualizar usuário", 500)
     }
-    
-    
-    
   }
 
-  async delete(id: number){
+  async update(id: number, updateUserDto: UpdateUserDto, payloadTokenDto: PayloadTokenDto) {
     try {
       const user = await this.prisma.user.findFirst({
-      where: {
-        id: id
+        where: {
+          id: id, 
+          status: true
+        }
+      });
+
+      if (!user) {
+        throw new NotFoundException('Usuário não encontrado');
       }
-    })
 
-    if(!user) throw new HttpException("Usuário não encontrado", 404);
-
-    await this.prisma.user.delete({
-      where: {
-        id: id
+      if (user.id !== payloadTokenDto.sub) {
+        throw new UnauthorizedException('Acesso Negado');
       }
-    })
 
-    return { message: `Usuário ${user.name} deletado com sucesso`}
+      const dataUser: { name?: string, passwordHash?: string } = {
+        name: updateUserDto.name ? updateUserDto.name : user.name,
+      }
+
+      if (updateUserDto.password) {
+        const passwordHash = await this.hashingService.hash(updateUserDto.password);
+        dataUser['passwordHash'] = passwordHash;
+      }
+
+      const updateUser = await this.prisma.user.update({
+        where: {
+          id: id
+        },
+        data: {
+          name: dataUser.name,
+          passwordHash: dataUser?.passwordHash ? dataUser.passwordHash : user.passwordHash,
+        },
+        select: {
+          id: true,
+          name: true,
+          email: true
+        }
+      })
+
+      return updateUser;
     } catch (error) {
-      console.log(error);
-      throw new HttpException("Erro ao deletar usuário", 500)
+      // instanceof verifica se o erro é uma instância dessa classe (ou herda dela)
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      throw new HttpException("Erro ao atualizar usuário", 500)
     }
-    
+
+
+
+  }
+
+  async delete(id: number, payloadTokenDto: PayloadTokenDto) {
+    try {
+      const user = await this.prisma.user.findFirst({
+        where: {
+          id: id,
+          status: true
+        }
+      })
+
+      if (!user) throw new HttpException("Usuário não encontrado", 404);
+
+      if (user.id !== payloadTokenDto.sub) {
+        throw new UnauthorizedException("Acesso Negado")
+      }
+
+      await this.prisma.user.delete({
+        where: {
+          id: id
+        }
+      })
+
+      return { message: `Usuário ${user.name} deletado com sucesso` }
+    } catch (error) {
+      console.log(error)
+      // instanceof verifica se o erro é uma instância dessa classe (ou herda dela)
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      throw new HttpException("Erro ao atualizar usuário", 500)
+    }
+
   }
 }

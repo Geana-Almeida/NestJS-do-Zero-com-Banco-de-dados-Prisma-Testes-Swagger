@@ -1,26 +1,24 @@
-import { Body, Controller, Delete, Get, Inject, Param, ParseIntPipe, Patch, Post, Put, Query, UseGuards, UseInterceptors } from "@nestjs/common";
+import { Body, Controller, Delete, Get, Param, ParseIntPipe, Patch, Post, Put, Query, UseGuards } from "@nestjs/common";
 import { TasksService } from "./tasks.service";
 import { CreateTaskDto } from "./dto/create-task.dto";
 import { UpdateTaskDto } from "./dto/update-task.dto";
 import { PaginationDto } from 'src/common/dto/pagination.dto';
-import { LoggerInterceptor } from "src/common/interceptors/logger.interceptor";
-import { BodyCreateTaksInterceptor } from "src/common/interceptors/body-create-task.interceptor";
-import { AddHeaderInterceptor } from "src/common/interceptors/add.header.interceptor";
-import { AuthAdminGuard } from "src/common/guards/admin.guard";
+import { AuthTokenGuard } from "src/auth/guard/auth.token.guard";
+import { TokenPayLoadParam } from "src/auth/param/token-payload-param";
+import { PayloadTokenDto } from "src/auth/dto/payload-token.dto";
 
 @Controller('tasks')
-@UseGuards(AuthAdminGuard)
-@UseInterceptors(LoggerInterceptor) //Interceptor roda antes de chegar no método do controller
 export class TasksController{
   constructor(
     private readonly tasksService: TasksService,
   ) {} 
   
+
   @Get()
-  @UseInterceptors(AddHeaderInterceptor)
   findAllTasks(@Query() paginationDto: PaginationDto) {
     return this.tasksService.findAll(paginationDto);
   }
+
 
   @Get(":id")
   findOneTask(@Param('id', ParseIntPipe) id: number) {
@@ -28,19 +26,31 @@ export class TasksController{
     return this.tasksService.findOne(id);
   }
 
+  @UseGuards(AuthTokenGuard)
   @Post()
-  @UseInterceptors(BodyCreateTaksInterceptor)
-  createTask(@Body() createTaskDto: CreateTaskDto) {
-    return this.tasksService.CreateTask(createTaskDto);
+  createTask(
+    @Body() createTaskDto: CreateTaskDto,
+    @TokenPayLoadParam() tokenPayload : PayloadTokenDto
+  ) {
+    return this.tasksService.CreateTask(createTaskDto, tokenPayload);
   }
 
+  @UseGuards(AuthTokenGuard)
   @Patch(":id")
-  updateTask(@Param('id', ParseIntPipe) id: number, @Body() updateTaskDto: UpdateTaskDto) {
-    return this.tasksService.update(id, updateTaskDto);
+  updateTask(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() updateTaskDto: UpdateTaskDto,
+    @TokenPayLoadParam() tokenPayLoad: PayloadTokenDto
+  ) {
+    return this.tasksService.update(id, updateTaskDto, tokenPayLoad);
   }
 
+  @UseGuards(AuthTokenGuard)
   @Delete(":id")
-  deleteTask(@Param('id', ParseIntPipe) id: number){
-    return this.tasksService.delete(id)
+  deleteTask(
+    @Param('id', ParseIntPipe) id: number,
+    @TokenPayLoadParam() tokenPayLoad: PayloadTokenDto
+){
+    return this.tasksService.delete(id, tokenPayLoad)
   }
 }

@@ -1,10 +1,11 @@
-import { BadRequestException, HttpException, HttpStatus, Injectable, NotFoundException, Query } from '@nestjs/common';
+import { BadRequestException, HttpException, HttpStatus, Injectable, NotFoundException, Query, UnauthorizedException } from '@nestjs/common';
 import { Task } from './entities/task.entity';
 import { NotFoundError } from 'rxjs';
 import { CreateTaskDto } from './dto/create-task.dto';
 import { UpdateTaskDto } from './dto/update-task.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { PaginationDto } from 'src/common/dto/pagination.dto';
+import { PayloadTokenDto } from 'src/auth/dto/payload-token.dto';
 
 
 @Injectable()
@@ -37,25 +38,29 @@ export class TasksService {
     throw new NotFoundException("")
   }
 
-  async CreateTask(createTaskDto: CreateTaskDto) {
+  async CreateTask(createTaskDto: CreateTaskDto, tokenPayload: PayloadTokenDto) {
     try {
       const newTask = await this.prisma.task.create({
       data: {
         name: createTaskDto.name,
         description: createTaskDto.description,
         completed: false,
-        userId: createTaskDto.userId
+        userId: tokenPayload.sub
       }
     })
 
     return newTask;
     } catch (error) {
-      console.log(error);
-      throw new BadRequestException("Falha ao criar a tarefa.")
+
+      // instanceof verifica se o erro é uma instância dessa classe (ou herda dela)
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      throw new HttpException("Erro ao atualizar usuário", 500)
     }
   }
 
-  async update(id: number, updateTaskDto: UpdateTaskDto) {
+  async update(id: number, updateTaskDto: UpdateTaskDto, tokenPayLoad: PayloadTokenDto) {
     try {
       const findTask = await this.prisma.task.findFirst({
         where: { id: id }
@@ -63,6 +68,10 @@ export class TasksService {
 
       if (!findTask) {
         throw new NotFoundException("Task não encontrada.")
+      }
+
+      if(findTask.userId !== tokenPayLoad.sub){
+        throw new UnauthorizedException("Acesso Negado!")
       }
 
       const task = await this.prisma.task.update({
@@ -76,12 +85,15 @@ export class TasksService {
 
       return task;
     } catch (error) {
-      console.log(error);
-      throw new BadRequestException("Falha ao deletar essa tarefa.");
+      // instanceof verifica se o erro é uma instância dessa classe (ou herda dela)
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      throw new HttpException("Erro ao atualizar usuário", 500)
     }
   }
 
-  async delete(id: number) {
+  async delete(id: number, tokenPayLoad: PayloadTokenDto) {
     try {
       const findTaks = await this.prisma.task.findFirst({
         where: {
@@ -93,6 +105,10 @@ export class TasksService {
         throw new NotFoundException("Task não encontrada.")
       }
 
+      if(findTaks.userId !== tokenPayLoad.sub){
+        throw new UnauthorizedException("Acesso Negado!")
+      }
+
       await this.prisma.task.delete({
         where: {
           id: id
@@ -101,8 +117,11 @@ export class TasksService {
 
       return { message: "Tarefa deletada com sucesso!" }
     } catch (error) {
-      console.log(error);
-      throw new BadRequestException("Falha ao deletar essa tarefa.");
+      // instanceof verifica se o erro é uma instância dessa classe (ou herda dela)
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      throw new HttpException("Erro ao atualizar usuário", 500)
     }
   }
 
